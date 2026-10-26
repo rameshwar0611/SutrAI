@@ -1,7 +1,21 @@
 <h1 align="center">SutrAI</h1>
 
 <p align="center">
-  A full-stack AI workspace for conversations, web research, code artifacts, and document processing.
+  <strong>AI-Powered Multi-Service Platform</strong>
+</p>
+
+<p align="center">
+  An intelligent AI workspace for conversations, web research,
+  document analysis, and content generation.
+</p>
+
+<p align="center">
+  <a href="https://d1tfk8buki9gux.cloudfront.net/">
+    <img src="https://img.shields.io/badge/Live_Demo-Explore_SutrAI-2ea44f?style=for-the-badge" alt="Live Demo"/>
+  </a>
+  <a href="https://github.com/rameshwar0611/SutrAI">
+    <img src="https://img.shields.io/badge/GitHub-Source_Code-181717?style=for-the-badge&logo=github" alt="GitHub"/>
+  </a>
 </p>
 
 <p align="center">
@@ -25,16 +39,18 @@
   <a href="https://github.com/rameshwar0611/SutrAI">Repository</a> ·
   <a href="#system-architecture">Architecture</a> ·
   <a href="#local-development">Local development</a> ·
-  <a href="#current-status--future-improvements">Current status</a>
+  <a href="#future-enhancements">Future Enhancements</a>
 </p>
 
 ## Overview
 
-SutrAI brings AI chat, web research, code generation, and document processing into a single React workspace. Users can organize conversations, ask questions about uploaded PDFs and images, inspect generated code, and download generated documents.
+SutrAI is a full-stack AI platform built with the MERN stack and a microservices-based backend architecture. It brings together AI-powered conversations, web research, document analysis, code generation, and downloadable content creation within a unified workspace.
 
-Built on the **MERN stack**, the project combines a microservices-style backend with an Express gateway, Firebase identity verification, Redis sessions and memory, and LangGraph routing across specialized AI handlers. PDF questions use **retrieval-augmented generation (RAG)** with Google embeddings and Qdrant; billing connects Razorpay orders to account credits.
+The backend consists of an Express API Gateway and four specialized services handling authentication, conversations, AI processing, and billing.
 
-Dockerfiles and GitHub Actions define delivery through **Amazon ECR, ECS, S3, and CloudFront**. The sections below explain the implementation, local setup, and remaining improvement areas. Some interface labels and generated documents currently use the name **CortexAI**.
+At its core, SutrAI uses LangGraph and LangChain to orchestrate AI workflows, with Qdrant-powered Retrieval-Augmented Generation (RAG) for document understanding. Redis supports session management and conversation memory, while MongoDB provides persistent storage.
+
+The platform integrates Firebase Authentication, Razorpay payments, Docker containerization, and GitHub Actions workflows targeting AWS ECS, ECR, S3, and CloudFront.
 
 ## Key features
 
@@ -459,17 +475,11 @@ Workflow service secrets identify ECS services; application variables with the s
 
 </details>
 
-## Screenshots
+## Future Enhancements
 
-Application screenshots are not included yet. Existing images are decorative assets or upload samples, not UI captures. Explore the [live demo](https://d1tfk8buki9gux.cloudfront.net/) for the interface; screenshots can be added when suitable captures are available.
+SutrAI is continuously evolving with planned improvements focused on reliability, user experience, and performance.
 
-## Current Status & Future Improvements
-
-SutrAI implements the workflows described above and continues to evolve as an engineering portfolio project. The demo link is provided for exploration; integration availability and deployment health are not guaranteed by this documentation.
-
-- **Security and identity:** Authorization boundaries, session lifecycle, credential handling, and input validation need further hardening. These remain unresolved engineering work.
-- **Billing reliability:** Improve payment reconciliation, consistent credit accounting, and account lifecycle handling before relying on the integration for live billing.
-- **AI and data lifecycle:** Improve cache consistency, request-limit handling, structured-output validation, and reusable PDF retrieval with collection cleanup.
-- **Developer experience and operations:** Add automated tests, CI quality gates, deployment checks, reproducible images, and consistent error handling; reconcile dependency metadata and branding.
-
-The project does not claim autonomous multi-agent collaboration, streaming responses, measured production-scale performance, or production readiness. Recurring subscriptions and reusable document retrieval are not currently implemented.
+- **Security & Reliability:** Strengthen authorization, session management, and payment handling.
+- **Performance:** Optimize Redis caching, API performance, and request processing.
+- **Testing & DevOps:** Expand automated testing, CI/CD validation, and deployment monitoring.
+- **AI Capabilities:** Enhance document retrieval, AI workflows, and response handling.
