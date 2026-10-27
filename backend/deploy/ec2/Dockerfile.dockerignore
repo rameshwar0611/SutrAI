@@ -1,0 +1,25 @@
+# Allow only application source and lockfiles; no runtime files enter the context.
+**
+!package.json
+!package-lock.json
+!gateway/
+!gateway/**
+!services/
+!services/**
+!shared/
+!shared/**
+**/node_modules
+**/.env
+**/.env.*
+**/*.env
+**/*.pem
+**/*.key
+**/*serviceAccount*.json
+**/firebase*.json
+**/secrets
+**/credentials
+**/.aws
+**/*.log
+**/temp
+**/tmp
+**/Dockerfile*

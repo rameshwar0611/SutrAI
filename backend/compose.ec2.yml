@@ -1,0 +1,193 @@
+# Explicit opt-in: does not replace docker-compose.yml or the ECS workflow.
+name: sutrai-ec2
+
+x-network-env: &network-env
+  # Preserve outbound proxy settings, but route Docker service traffic directly.
+  NO_PROXY: localhost,127.0.0.1,::1,gateway,auth,chat,agent,billing,redis
+  no_proxy: localhost,127.0.0.1,::1,gateway,auth,chat,agent,billing,redis
+
+x-runtime: &runtime
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 90s
+  networks: [backend]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-health: &health
+  test: [CMD, node, -e, "fetch('http://127.0.0.1:'+process.env.PORT+'/',{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"]
+  interval: 30s
+  timeout: 5s
+  start_period: 60s
+  retries: 3
+
+services:
+  gateway:
+    <<: *runtime
+    image: sutrai-ec2/gateway:${RELEASE_TAG:?Set an immutable release identifier}
+    build:
+      context: .
+      dockerfile: deploy/ec2/Dockerfile
+      args:
+        SERVICE_PATH: gateway
+    env_file: ["${CONFIG_DIR:-/etc/sutrai}/gateway.env"]
+    environment:
+      <<: *network-env
+      PORT: "8000"
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=96
+      REDIS_URL: ${REDIS_URL:?Retain the existing Redis endpoint for initial cutover}
+      AUTH_SERVICE: http://auth:8001
+      CHAT_SERVICE: http://chat:8002
+      AGENT_SERVICE: http://agent:8003
+      BILLING_SERVICE: http://billing:8004
+    # Host reverse proxy or SSH tunnel only. Other services have no published ports.
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      auth: {condition: service_healthy}
+      chat: {condition: service_healthy}
+      agent: {condition: service_healthy}
+      billing: {condition: service_healthy}
+    healthcheck: *health
+    mem_limit: 192m
+    cpu_shares: 512
+
+  auth:
+    <<: *runtime
+    image: sutrai-ec2/auth:${RELEASE_TAG:?Set an immutable release identifier}
+    build:
+      context: .
+      dockerfile: deploy/ec2/Dockerfile
+      args:
+        SERVICE_PATH: services/auth
+    env_file: ["${CONFIG_DIR:-/etc/sutrai}/auth.env"]
+    environment:
+      <<: *network-env
+      PORT: "8001"
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=128
+      REDIS_URL: ${REDIS_URL:?Retain the existing Redis endpoint for initial cutover}
+    volumes:
+      - type: bind
+        source: ${CONFIG_DIR:-/etc/sutrai}/firebase-service-account.json
+        target: /app/services/auth/serviceAccountKey.json
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck: *health
+    mem_limit: 256m
+    cpu_shares: 512
+
+  chat:
+    <<: *runtime
+    image: sutrai-ec2/chat:${RELEASE_TAG:?Set an immutable release identifier}
+    build:
+      context: .
+      dockerfile: deploy/ec2/Dockerfile
+      args:
+        SERVICE_PATH: services/chat
+    env_file: ["${CONFIG_DIR:-/etc/sutrai}/chat.env"]
+    environment:
+      <<: *network-env
+      PORT: "8002"
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=128
+    healthcheck: *health
+    mem_limit: 256m
+    cpu_shares: 512
+
+  agent:
+    <<: *runtime
+    image: sutrai-ec2/agent:${RELEASE_TAG:?Set an immutable release identifier}
+    build:
+      context: .
+      dockerfile: deploy/ec2/Dockerfile
+      args:
+        SERVICE_PATH: services/agent
+    env_file: ["${CONFIG_DIR:-/etc/sutrai}/agent.env"]
+    environment:
+      <<: *network-env
+      PORT: "8003"
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=768
+      REDIS_URL: ${REDIS_URL:?Retain the existing Redis endpoint for initial cutover}
+      AUTH_SERVICE: http://auth:8001
+      CHAT_SERVICE: http://chat:8002
+    volumes: [agent-temp:/app/services/agent/temp]
+    healthcheck: *health
+    mem_limit: 1536m
+    cpu_shares: 1024
+
+  billing:
+    <<: *runtime
+    image: sutrai-ec2/billing:${RELEASE_TAG:?Set an immutable release identifier}
+    build:
+      context: .
+      dockerfile: deploy/ec2/Dockerfile
+      args:
+        SERVICE_PATH: services/billing
+    env_file: ["${CONFIG_DIR:-/etc/sutrai}/billing.env"]
+    environment:
+      <<: *network-env
+      PORT: "8004"
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=128
+      AUTH_SERVICE: http://auth:8001
+    healthcheck: *health
+    mem_limit: 256m
+    cpu_shares: 256
+
+  redis:
+    <<: *runtime
+    profiles: [local-redis]
+    image: redis:7.4-bookworm
+    user: redis
+    init: false
+    command: [redis-server, /usr/local/etc/redis/redis.conf]
+    volumes:
+      - redis-data:/data
+      - ./deploy/ec2/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    mem_limit: 512m
+    cpu_shares: 512
+
+  caddy:
+    <<: *runtime
+    profiles: [proxy]
+    image: caddy:2.10-alpine
+    init: false
+    # Image capabilities are needed to bind its low HTTP/HTTPS ports.
+    cap_add: [NET_BIND_SERVICE]
+    environment:
+      <<: *network-env
+      API_DOMAIN: ${API_DOMAIN:?Set the API DNS name}
+      SITE_ADDRESS: ${API_DOMAIN:?Set the API DNS name}
+      ACME_EMAIL: ${ACME_EMAIL:?Set the certificate contact email}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/ec2/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      gateway: {condition: service_healthy}
+    mem_limit: 128m
+    cpu_shares: 256
+
+networks:
+  # Keep outbound access for managed databases and API providers.
+  backend: {driver: bridge}
+
+volumes:
+  redis-data:
+  agent-temp:
+  caddy-data:
+  caddy-config:
