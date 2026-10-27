@@ -1,0 +1,18 @@
+# Use only AFTER the separate Redis migration/rollback gates in the runbook.
+# Also set REDIS_URL=redis://redis:6379 in compose.env (base interpolation is required).
+services:
+  gateway:
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis: {condition: service_healthy}
+  auth:
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis: {condition: service_healthy}
+  agent:
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis: {condition: service_healthy}

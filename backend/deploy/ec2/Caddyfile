@@ -1,0 +1,24 @@
+{
+    email {$ACME_EMAIL}
+}
+
+{$SITE_ADDRESS} {
+    # Auth mounts these internal mutation routes without gateway authentication.
+    # An allowlist prevents exposing them through /api/auth (including subpaths).
+    @authPublic path /api/auth /api/auth/ /api/auth/login /api/auth/logout
+    handle @authPublic {
+        reverse_proxy gateway:8000
+    }
+    @authInternal path_regexp authInternal (?i)^/api/auth(?:/|$)
+    handle @authInternal {
+        respond 404
+    }
+    handle {
+        # Preserve URI, cookies, multipart bodies and forwarded headers.
+        reverse_proxy gateway:8000 {
+            transport http {
+                response_header_timeout 300s
+            }
+        }
+    }
+}

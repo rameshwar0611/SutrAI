@@ -1,0 +1,7 @@
+# First-cutover option: retain existing ALB/ACM/DNS and frontend URL.
+# Requires Compose >= 2.24.4 for !override. Allow 8080 only from the ALB SG.
+services:
+  caddy:
+    environment:
+      SITE_ADDRESS: http://:8080
+    ports: !override ["8080:8080"]
