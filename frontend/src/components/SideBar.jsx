@@ -1,37 +1,46 @@
-import React from 'react'
-import { Coins, LogOut, Menu, MessageSquare, PanelLeftIcon, PanelRight, PenBoxIcon, PenSquare, Plus, User, X } from "lucide-react"
+import { Coins, LogOut, Menu, MessageSquare, PanelLeftIcon, PanelRight, PenSquare, Plus, User, X } from "lucide-react"
 import { useState } from 'react'
 import { useEffect } from 'react'
 import { getConversations } from '../features/getConversations'
 import { useDispatch, useSelector } from 'react-redux'
-import { addConversation, setConversations, setSelectedConversation } from '../redux/conversationSlice'
+import { setConversations, setSelectedConversation } from '../redux/conversationSlice'
 
-import { createConversation } from '../features/createConversation'
-import logOut from '../features/logOut'
-import { setUserdata } from '../redux/userSlice'
+import { clearDraft } from '../redux/workspaceSlice'
+import { setMessages, setArtifacts } from '../redux/messageSlice'
 import BillingDrawer from './BillingDrawer'
-function SideBar() {
+function SideBar({ onLogin, onLogout }) {
     const [collapsed, setCollapsed] = useState(false)
     const dispatch = useDispatch()
     const [imageError, setImageError] = useState(false)
-    const { conversations, selectedConversation } = useSelector(state => state.conversation)
-    const { userData } = useSelector(state => state.user)
-    const [showBilling,setShowBilling]=useState(false)
+    const { conversations: accountConversations, selectedConversation } = useSelector(state => state.conversation)
+    const { userData, status, sessionEpoch, signingOut } = useSelector(state => state.user)
+    const isLoading = useSelector(state => state.message.isLoading)
+    const conversations = status === 'authenticated' ? accountConversations : []
+    const [historyError, setHistoryError] = useState(null)
+    const [billingOwner,setBillingOwner]=useState(null)
+    const showBilling = status === 'authenticated' && billingOwner === sessionEpoch
     const [mobileOpen,setMobileOpen]=useState(false)
     useEffect(() => {
-        const getConv = async () => {
-            const data = await getConversations()
+        if (status !== 'authenticated') return
+        const controller = new AbortController()
+        getConversations({ signal: controller.signal }).then(data => {
+            if (controller.signal.aborted) return
             dispatch(setConversations(data))
-        }
-        getConv()
-    }, [userData?._id])
+            setHistoryError(null)
+        }).catch(() => {
+            if (!controller.signal.aborted) setHistoryError('Unable to load conversations. Please try again later.')
+        })
+        return () => controller.abort()
+    }, [status, sessionEpoch, dispatch])
 
-    const handleCreateConversation = async () => {
-        const data = await createConversation()
-        dispatch(addConversation(data))
+    const selectConversation = conversation => {
+        if (isLoading) return
+        dispatch(setSelectedConversation(conversation))
+        dispatch(setMessages([]))
+        dispatch(setArtifacts([]))
+        dispatch(clearDraft())
+        setMobileOpen(false)
     }
-
-
 
     if (collapsed) {
         return (
@@ -44,17 +53,17 @@ function SideBar() {
 
                 <button
                     className='flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors duration-150 bg-transparent border-none cursor-pointer '
-                    onClick={()=>dispatch(setSelectedConversation(null))}
+                    onClick={()=>selectConversation(null)}
                 >
                     <Plus size={17} />
                 </button>
 
                 <div className='flex-1 overflow-y-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-5'>
-                    {conversations.map((conv, i) => {
+                    {conversations.map((conv) => {
                         const isActive = selectedConversation?._id == conv?._id
                         return (
                             <div
-                                onClick={() => dispatch(setSelectedConversation(conv))}
+                                key={conv._id} onClick={() => selectConversation(conv)}
                                 className={`flex items-center gap-2.5 cursor-pointer mb-0.5 px-3 py-2.5 rounded-[10px] border transition-colors duration-150
                 ${isActive ? "bg-indigo-500/10 border-indigo-500/[0.18]"
                                         : "bg-transparent border-transparent"}`}>
@@ -131,16 +140,16 @@ function SideBar() {
                     <span className='text-[16px] font-semibold text-slate-100 tracking-tight flex-1'>
                         SutrAI
                     </span>
-                    <span className='text-[10px] font-medium text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full tracking-wide'>{userData?.plan || "free"}</span>
+                    <span className='text-[10px] font-medium text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full tracking-wide'>{status === "authenticated" ? userData?.plan || "free" : "guest"}</span>
                     <button className='flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors duration-150 bg-transparent border-none cursor-pointer'
-                        onClick={()=>dispatch(setSelectedConversation(null))}>
+                        onClick={()=>selectConversation(null)}>
                         <PenSquare size={14} />
                     </button>
                 </div>
 
                 <div className='px-4 pt-4 pb-1'>
                     <button className='w-full flex items-center justify-center gap-2 text-sm font-medium text-white bg-linear-to-br from-indigo-500 to-violet-700 rounded-xl py-[10px] border-none cursor-pointer hover:opacity-90 transition-opacity duration-150'
-                        onClick={()=>dispatch(setSelectedConversation(null))}
+                        onClick={()=>selectConversation(null)}
                     >
                         <Plus size={15} />
                         New Chat
@@ -150,7 +159,7 @@ function SideBar() {
                 {conversations?.length == 0
                     ?
                     <div className='px-5 pt-4 pb-1.5 text-[10.5px] font-semibold uppercase tracking-widest text-slate-600'>
-                        No Recent Conversations
+                        {status === "authenticated" ? "No Recent Conversations" : "Sign in to save conversations"}
                     </div>
                     :
                     (
@@ -161,11 +170,12 @@ function SideBar() {
 
 
                 <div className='flex-1 overflow-y-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-                    {conversations?.map((conv, i) => {
+                    {status === 'authenticated' && historyError && <p role="alert" className="px-3 py-2 text-xs text-red-300">{historyError}</p>}
+                    {conversations?.map((conv) => {
                         const isActive = selectedConversation?._id == conv?._id
                         return (
                             <div
-                                onClick={() => dispatch(setSelectedConversation(conv))}
+                                key={conv._id} onClick={() => selectConversation(conv)}
                                 className={`flex items-center gap-2.5 cursor-pointer mb-0.5 px-3 py-2.5 rounded-[10px] border transition-colors duration-150
                 ${isActive ? "bg-indigo-500/10 border-indigo-500/[0.18]"
                                         : "bg-transparent border-transparent"}`}>
@@ -210,23 +220,20 @@ function SideBar() {
                             </div>
                             <div className='flex gap-1'>
                                 <button 
-                                onClick={()=>setShowBilling(true)}
+                                aria-label="Billing" onClick={()=>setBillingOwner(sessionEpoch)}
                                 className='flex items-center justify-center w-7 h-7 rounded-[7px] border-none bg-transparent text-yellow-600 cursor-pointer hover:bg-white/[0.08] hover:text-slate-400 transition-all duration-150'>
                                     <Coins size={16} />
                                 </button>
                                 <button className='flex items-center justify-center w-7 h-7 rounded-[7px] border-none bg-transparent text-slate-600 cursor-pointer hover:bg-white/[0.08] hover:text-slate-400 transition-all duration-150'
-                                    onClick={() => {
-                                        logOut();
-                                        dispatch(setUserdata(null))
-                                    }}
+                                    aria-label="Log out" onClick={onLogout}
                                 >
                                     <LogOut size={16} />
                                 </button>
                             </div>
                         </div>)
                         :
-                        <button className='w-full flex items-center justify-center gap-2 text-sm font-medium text-slate-200 bg-white/[0.05] border border-white/[0.08] rounded-xl py-[11px] cursor-pointer hover:bg-white/[0.08] transition-colors duration-150'>
-                            Login
+                        <button disabled={status === 'checking' || signingOut} onClick={() => onLogin()} className='w-full flex items-center justify-center gap-2 text-sm font-medium text-slate-200 bg-white/[0.05] border border-white/[0.08] rounded-xl py-[11px] cursor-pointer hover:bg-white/[0.08] transition-colors duration-150 disabled:opacity-50'>
+                            Log in
                         </button>}
                 </div>
             </div>
@@ -234,10 +241,11 @@ function SideBar() {
         </div>
 
         
-           <BillingDrawer
+           {status === "authenticated" && <BillingDrawer
+           key={sessionEpoch}
            open={showBilling}
-           onClose={()=>setShowBilling(false)}
-           />
+           onClose={()=>setBillingOwner(null)}
+           />}
 
         </>
     )
