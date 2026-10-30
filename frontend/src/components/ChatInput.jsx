@@ -1,110 +1,127 @@
 import { Code2, FileText, Globe, ImageIcon, MessageSquare, Mic, MicOff, Paperclip, Presentation, Send, X, Zap } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import sendMessage from '../features/sendMessage'
 import { useDispatch, useSelector } from 'react-redux'
-import { addMessage, setArtifacts, setIsLoading, setMessages } from '../redux/messageSlice'
+import { addMessage, removeMessage, setArtifacts, setIsLoading } from '../redux/messageSlice'
 import { createConversation } from '../features/createConversation'
 import { addConversation, setConvTitle, setSelectedConversation } from '../redux/conversationSlice'
 import { updateConversation } from '../features/updateConversation'
-import { useRef } from 'react'
+import { clearDraft, setDraftMode, setDraftText } from '../redux/workspaceSlice'
+import { store } from '../redux/store'
 
-
-function ChatInput() {
-  const [value, setValue] = useState("")
-  const [selectedAgent, setSelectedAgent] = useState("Auto")
+function ChatInput({ onLogin }) {
+  const { text: value, mode, resetKey } = useSelector(state => state.workspace)
+  const { status, sessionEpoch, signingIn, signingOut } = useSelector(state => state.user)
   const { selectedConversation } = useSelector(state => state.conversation)
-  const { messages, isLoading } = useSelector(state => state.message)
-  const [selectedFile, setSelectedFile] = useState(null)
+  const isLoading = useSelector(state => state.message.isLoading)
+  const [attachment, setAttachment] = useState(null)
+  const selectedFile = attachment?.resetKey === resetKey ? attachment.file : null
+  const preview = selectedFile ? attachment.preview : null
   const [listening, setListening] = useState(false)
+  const [feedback, setFeedback] = useState(null)
   const recognitionRef = useRef(null)
   const fileRef = useRef(null)
+  const requestRef = useRef(null)
   const dispatch = useDispatch()
+  const busy = isLoading || signingIn || signingOut
+  const setValue = text => dispatch(setDraftText(text))
 
-
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
+  useEffect(() => () => requestRef.current?.abort(), [sessionEpoch, resetKey])
+  useEffect(() => {
+    if (busy) recognitionRef.current?.stop()
+  }, [busy])
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) return;
-
+    if (!SpeechRecognition) return
     const recognition = new SpeechRecognition()
-    recognition.lang = "en-US"
-    recognition.interimResults = true;
-    recognition.continuous = true;
-
-    recognition.onresult = (event) => {
-      let transcript = ""
-
+    recognition.lang = 'en-US'
+    recognition.interimResults = true
+    recognition.continuous = true
+    recognition.onresult = event => {
+      let transcript = ''
       for (let index = event.resultIndex; index < event.results.length; index++) {
-
         transcript += event.results[index][0].transcript
       }
-      setValue(transcript)
+      dispatch(setDraftText(transcript))
     }
-
-    recognition.onend = () => {
-      setListening(false)
-    }
-
+    recognition.onend = () => setListening(false)
+    recognition.onerror = () => setListening(false)
     recognitionRef.current = recognition
-  }, [])
+    return () => { recognition.onresult = null; recognition.onend = null; recognition.abort() }
+  }, [dispatch])
 
   const toggleMic = () => {
     if (!recognitionRef.current) {
-      alert("speech recognition not supported")
+      setFeedback('Speech recognition is not supported in this browser.')
+      return
     }
-    if (listening) {
-      recognitionRef.current.stop()
-      setListening(false)
-    } else {
-      recognitionRef.current.start()
-      setListening(true)
-    }
-
+    if (listening) recognitionRef.current.stop()
+    else recognitionRef.current.start()
+    setListening(!listening)
   }
 
-
-
-
-
-
-
+  const handleFile = event => {
+    const file = event.target.files[0]
+    if (!file) return
+    if ((file.type !== 'application/pdf' && !file.type.startsWith('image/')) || file.size > 20 * 1024 * 1024) {
+      setFeedback('Choose a PDF or image up to 20 MB.')
+      event.target.value = ''
+      return
+    }
+    setAttachment({ file, resetKey, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null })
+    setFeedback(null)
+  }
 
   const handleSendMessage = async () => {
+    if (busy || requestRef.current || (!value.trim() && !selectedFile)) return
+    if (status === 'checking') {
+      setFeedback('Please wait while your session is checked. Your draft is safe.')
+      return
+    }
+    if (status !== 'authenticated') { onLogin(); return }
+    const controller = new AbortController()
+    requestRef.current = controller
+    const current = () => !controller.signal.aborted &&
+      store.getState().user.sessionEpoch === sessionEpoch &&
+      store.getState().user.status === 'authenticated'
+    const clientId = crypto.randomUUID()
     dispatch(setIsLoading(true))
-    let conversation = selectedConversation
-    if (!conversation) {
-      dispatch(setMessages([]))
-      const conv = await createConversation()
-      dispatch(setSelectedConversation(conv))
-
-      dispatch(addConversation(conv))
-      conversation = conv
+    setFeedback(null)
+    try {
+      let conversation = selectedConversation
+      if (!conversation) {
+        conversation = await createConversation({ signal: controller.signal })
+        if (!current()) return
+        dispatch(setSelectedConversation(conversation))
+        dispatch(addConversation(conversation))
+      }
+      if (conversation.title === 'New Chat') {
+        const title = value.trim() || selectedFile.name
+        await updateConversation({ id: conversation._id, title }, { signal: controller.signal })
+        if (!current()) return
+        dispatch(setConvTitle({ conversationId: conversation._id, title: title.slice(0, 40) }))
+      }
+      const formData = new FormData()
+      formData.append('prompt', value.trim())
+      formData.append('conversationId', conversation._id)
+      formData.append('agent', mode)
+      if (selectedFile) formData.append('file', selectedFile)
+      dispatch(addMessage({ clientId, role: 'user', content: value.trim() }))
+      const data = await sendMessage(formData, { signal: controller.signal })
+      if (!current()) return
+      dispatch(setArtifacts(data.artifacts || []))
+      dispatch(addMessage({ role: 'assistant', content: data.answer, images: data.images }))
+      dispatch(clearDraft())
+    } catch (error) {
+      if (!current()) return
+      dispatch(removeMessage(clientId))
+      setFeedback(error.code === 'AUTH_REQUIRED' ? 'Please sign in to send your draft.' :
+        'The request could not be completed. Your draft is preserved; check the conversation before retrying.')
+    } finally {
+      if (store.getState().user.sessionEpoch === sessionEpoch) dispatch(setIsLoading(false))
+      if (requestRef.current === controller) requestRef.current = null
     }
-
-    if (conversation.title == "New Chat") {
-      await updateConversation({ id: conversation?._id, title: value.trim() })
-      dispatch(setConvTitle({ conversationId: conversation?._id, title: value.slice(0, 40) }))
-    }
-
-
-    console.log(selectedFile)
-    const formData = new FormData()
-    formData.append("prompt", value.trim())
-    formData.append("conversationId", conversation?._id)
-    formData.append("agent", selectedAgent.toLowerCase())
-    if (selectedFile) {
-      formData.append("file", selectedFile)
-    }
-
-
-
-    dispatch(addMessage({ role: "user", content: value.trim() }))
-    setValue("")
-    const data = await sendMessage(formData)
-    dispatch(setIsLoading(false))
-    setSelectedFile(null)
-    dispatch(setArtifacts(data.artifacts || []))
-    dispatch(addMessage({ role: "assistant", content: data?.answer, images: data?.images }))
-    console.log(data)
   }
 
   const agents = [
@@ -158,11 +175,11 @@ function ChatInput() {
 
         <div className='flex w-[80%] gap-2 pr-2 flex-wrap'>
           {agents.map((agent) => {
-            const isActive = selectedAgent === agent.label
+            const isActive = mode === agent.id
             const Icon = agent.icon
             return (
-              <div
-                onClick={() => setSelectedAgent(agent.label)}
+              <button key={agent.id} disabled={busy} aria-pressed={isActive}
+                onClick={() => dispatch(setDraftMode(agent.id))}
                 className={`
             flex-shrink-0
             cursor-pointer
@@ -192,7 +209,7 @@ function ChatInput() {
 
                 {agent.label}
 
-              </div>
+              </button>
             )
 
           })}
@@ -206,7 +223,7 @@ function ChatInput() {
                 selectedFile?.type === "application/pdf" ? <FileText size={16}
 
                   className="text-red-400"
-                /> : selectedFile.type.startsWith("image/") && <img src={URL.createObjectURL(selectedFile)} className="h-10 w-10 rounded-xl object-cover mt-3"
+                /> : selectedFile.type.startsWith("image/") && <img src={preview} alt="Selected attachment" className="h-10 w-10 rounded-xl object-cover mt-3"
                 />
               }
 
@@ -215,11 +232,11 @@ function ChatInput() {
                   {selectedFile?.name}
                 </p>
                 <p className='text-[10px] text-slate-500'>
-                  {Math.ceil(selectedFile.size)}KB
+                  {Math.ceil(selectedFile.size / 1024)} KB
                 </p>
 
               </div>
-              <button className='ml-2' onClick={() => { setSelectedFile(null); fileRef.current.value = "" }}><X size={14} className='text-slate-500 hover:text-white' /></button>
+              <button className='ml-2' disabled={busy} aria-label="Remove attachment" onClick={() => { setAttachment(null); fileRef.current.value = "" }}><X size={14} className='text-slate-500 hover:text-white' /></button>
             </div>
 
 
@@ -227,7 +244,9 @@ function ChatInput() {
         }
 
 
-        <textarea
+        {feedback && <p role="alert" className="text-xs text-red-300">{feedback}</p>}
+        {status !== "authenticated" && <p className="text-[11px] text-slate-500">Explore freely. Sign in when you are ready to send. Attachments stay in this tab until reload.</p>}
+        <textarea id="chat-prompt" aria-label="Message" disabled={busy}
           placeholder='Ask Anything...'
           onChange={(e) => setValue(e.target.value)}
           value={value}
@@ -237,24 +256,20 @@ function ChatInput() {
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-1'>
 
-            <input type="file" accept='.pdf,image/*' hidden ref={fileRef} onChange={(e) => {
-              const file = e.target.files[0]
-              if (file) {
-                setSelectedFile(file)
-              }
-            }} />
+            <input key={resetKey} type="file" aria-label="Attach PDF or image" disabled={busy} accept=".pdf,image/*" hidden ref={fileRef} onChange={handleFile} />
 
-            <button className='flex items-center justify-center w-8 h-8 rounded-lg text-slate-600 hover:text-slate-400 hover:bg-white/[0.05] border border-transparent hover:border-white/[0.06] transition-all duration-150 bg-transparent cursor-pointer' onClick={() => fileRef.current.click()}>
+            <button aria-label="Attach file" disabled={busy} className='flex items-center justify-center w-8 h-8 rounded-lg text-slate-600 hover:text-slate-400 hover:bg-white/[0.05] border border-transparent hover:border-white/[0.06] transition-all duration-150 bg-transparent cursor-pointer' onClick={() => fileRef.current.click()}>
               <Paperclip size={16} />
             </button>
             <button
+              aria-label={listening ? "Stop dictation" : "Start dictation"} disabled={busy}
               onClick={toggleMic}
               className={`flex items-center justify-center w-8 h-8 rounded-lg  transition-all duration-150 cursor-pointer ${listening ?"bg-red-500 text-white":"text-slate-600 hover:bg-white/[0.05]" }`}>
              {listening?<Mic size={16} />:<MicOff size={16}/>} 
             </button>
           </div>
           <button
-            disabled={!value && isLoading}
+            aria-label="Send message" disabled={busy || (!value.trim() && !selectedFile)}
             onClick={handleSendMessage}
             className={`flex items-center justify-center w-8 h-8 rounded-lg border-none cursor-pointer transition-all duration-150 ${value.trim() ? "bg-linear-to-br from-indigo-500 to-violet-700 hover:opacity-90 text-white" : "bg-white/[0.05] text-slate-600 cursor-not-allowed"}`}>
           <Send size={15} />

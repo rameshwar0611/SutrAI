@@ -1,37 +1,39 @@
-import React, { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import Nav from './Nav'
 import MessageList from './MessageList'
 import ChatInput from './ChatInput'
-import { useDispatch, useSelector } from 'react-redux'
 import getMessages from '../features/getMessages'
 import { setArtifacts, setMessages } from '../redux/messageSlice'
 
-function ChatArea() {
-  const {selectedConversation}=useSelector(state=>state.conversation)
-  const dispatch=useDispatch()
-  useEffect(()=>{
-  const getMesg=async () => {
-    
-    if(selectedConversation){
-      if(selectedConversation.title=="New Chat")return;
-const data=await getMessages(selectedConversation?._id)
-console.log(data)
+export default function ChatArea({ onLogin }) {
+  const { selectedConversation } = useSelector(state => state.conversation)
+  const { status, sessionEpoch } = useSelector(state => state.user)
+  const isLoading = useSelector(state => state.message.isLoading)
+  const resetKey = useSelector(state => state.workspace.resetKey)
+  const [historyError, setHistoryError] = useState(null)
+  const dispatch = useDispatch()
+  const conversationId = selectedConversation?._id
+  useEffect(() => {
+    if (status !== 'authenticated' || !conversationId || isLoading) return
+    const controller = new AbortController()
+    getMessages(conversationId, { signal: controller.signal }).then(data => {
+      if (controller.signal.aborted) return
       dispatch(setMessages(data))
-      const latestArtifactMessage=[...data].reverse().find(msg=>msg.artifacts && msg.artifacts.length>0)
-      dispatch(setArtifacts(latestArtifactMessage?.artifacts || []))
-    }
-    
-  }
-
-  getMesg()
-  },[selectedConversation?._id])
+      const latest = [...data].reverse().find(message => message.artifacts?.length)
+      dispatch(setArtifacts(latest?.artifacts || []))
+      setHistoryError(null)
+    }).catch(() => {
+      if (!controller.signal.aborted) setHistoryError('Unable to load messages. Please try again later.')
+    })
+    return () => controller.abort()
+  }, [status, sessionEpoch, conversationId, isLoading, dispatch])
   return (
-    <div className='flex-1 flex flex-col min-w-0'>
-      <Nav/>
-      <MessageList/>
-      <ChatInput/>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <Nav />
+      {status === 'authenticated' && selectedConversation && historyError && <p role="alert" className="px-5 py-2 text-xs text-red-300">{historyError}</p>}
+      <MessageList />
+      <ChatInput key={resetKey} onLogin={onLogin} />
     </div>
   )
 }
-
-export default ChatArea

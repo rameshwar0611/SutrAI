@@ -15,6 +15,9 @@ const messageSlice=createSlice({
         addMessage:(state,action)=>{
         state.messages.push(action.payload)
        },
+       removeMessage:(state,action)=>{
+        state.messages=state.messages.filter(message=>message.clientId!==action.payload)
+       },
        setArtifacts:(state,action)=>{
         state.artifacts=action.payload
        },
@@ -27,6 +30,6 @@ const messageSlice=createSlice({
    
 })
 
-export const {setMessages,addMessage,setArtifacts,setIsLoading}=messageSlice.actions 
+export const {setMessages,addMessage,removeMessage,setArtifacts,setIsLoading}=messageSlice.actions
 export default messageSlice.reducer
 

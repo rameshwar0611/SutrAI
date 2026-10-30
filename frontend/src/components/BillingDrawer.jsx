@@ -1,16 +1,23 @@
-import React from 'react'
 import { AnimatePresence, motion } from "motion/react"
 import { Crown, X } from 'lucide-react'
 import { useSelector } from 'react-redux'
+import { useEffect, useRef } from 'react'
+import { store } from '../redux/store'
 import { createOrder } from '../features/createOrder'
 import { verifyPayment } from '../features/verifyPayment'
 function BillingDrawer({ open, onClose }) {
 
-    const { userData } = useSelector(state => state.user)
+    const { userData, status, sessionEpoch } = useSelector(state => state.user)
+    const checkout = useRef(null)
+    useEffect(() => () => checkout.current?.close?.(), [])
+
+    if (status !== 'authenticated' || !userData) return null
 
     const handleUpgrade = async (plan) => {
         try {
             const data = await createOrder(plan)
+            if (store.getState().user.status !== 'authenticated' ||
+                store.getState().user.sessionEpoch !== sessionEpoch || !data?.order?.id) return
             const options = {
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID,
                 amount: data?.order?.amount,
@@ -20,6 +27,8 @@ function BillingDrawer({ open, onClose }) {
                 order_id: data?.order?.id,
                 handler: async (response) => {
                     try {
+                        if (store.getState().user.status !== 'authenticated' ||
+                            store.getState().user.sessionEpoch !== sessionEpoch) return
                         const data = await verifyPayment(response)
                         console.log(data)
                     } catch (error) {
@@ -32,6 +41,7 @@ function BillingDrawer({ open, onClose }) {
             }
 
             const razorpay = new window.Razorpay(options)
+            checkout.current = razorpay
             razorpay.open()
         } catch (error) {
             console.log(error)
