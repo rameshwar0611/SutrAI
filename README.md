@@ -79,14 +79,27 @@ The platform integrates Firebase Authentication, Razorpay payments, Docker conta
 - Maintain account plans, credits, and per-user/per-handler request counters.
 - Create Razorpay orders, verify checkout signatures using HMAC-SHA256, and update payment records and account credits.
 
-See [Current Status & Future Improvements](#current-status--future-improvements) for work still in progress.
+See [Future Enhancements](#future-enhancements) for work still in progress.
+
+## Performance & Engineering
+
+The Contour workspace supports seven AI modes: **Auto, Chat, Coding, PDF, PPT, Vision, and Search**.
+
+| Engineering check | Verified result |
+| --- | --- |
+| Initial guest JavaScript transfer | **65.45% reduction** from Phase 5 to optimized Phase 6: 413,537 → 142,895 bytes |
+| Lighthouse Performance median | **100 mobile / 98 desktop viewport** |
+| Unit tests | **33 passed** |
+| Playwright browser tests | **128 passed**, with four expected viewport-specific skips |
+
+Performance results come from controlled synthetic production-build tests of the guest workspace, with five cold-cache Lighthouse 13.6 runs per revision and viewport. Tests used a local gzip server, isolated API responses, and blocked external traffic. Both mobile (390×844) and desktop (1440×960) profiles used simulated 4× CPU slowdown, 150 ms RTT, and 1,638.4 Kbit/s throughput; the desktop profile is not Lighthouse's default desktop preset. These results describe the archived-source lab builds, not real production-user performance or live backend/AI latency. Browser tests use isolated integrations and initiate no real payments.
 
 ## Technology stack
 
 | Category | Technologies and actual role |
 | --- | --- |
 | Frontend | React 19, JavaScript/JSX, Vite, Redux Toolkit, Axios |
-| Interface | Tailwind CSS, Motion, Lucide, React Markdown, Prism syntax highlighting, Monaco Editor |
+| Interface | Tailwind CSS, Lucide, React Markdown, Prism syntax highlighting, Monaco Editor |
 | Backend | Node.js ES modules, Express 5, express-http-proxy, Multer, Morgan |
 | Persistence | MongoDB and Mongoose for users, conversations, messages, artifacts, and payment records |
 | Redis | ioredis client for sessions, conversation memory, and request counters |
@@ -277,11 +290,11 @@ for directory in backend backend/gateway backend/services/auth backend/services/
 done
 
 cd frontend
-npm ci --legacy-peer-deps
+npm ci
 cd ..
 ```
 
-Install the backend root package for shared `ioredis` imports. The frontend flag accommodates peer-dependency entries missing from the current lockfile without rewriting it.
+Install the backend root package for shared `ioredis` imports. Frontend development dependencies include Playwright and axe-core for local browser and accessibility checks.
 
 ### 2. Prepare databases and configuration
 
@@ -321,7 +334,7 @@ With the example values below, the frontend is at `http://localhost:5173` and th
 - `GET /` on each backend is a greeting endpoint, not a database/integration health check.
 - `GET /api/me` on the gateway requires a valid application session.
 - After sign-in, verify conversation creation, a chat response, and message retrieval before testing search, RAG, artifacts, or checkout.
-- In `frontend/`, `npm run build` builds the client, `npm run preview` serves the build, and `npm run lint` runs ESLint. Existing lint findings remain; there is no application test suite or CI test gate in the repository.
+- In `frontend/`, run `npm test` for unit tests, `npm run test:e2e` for browser tests, `npm run lint` for ESLint, and `npm run build` for the production build. Playwright requires an installed Chromium browser; run `npx playwright install chromium` after installing dependencies, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an existing executable. `npm run preview` serves the build. The deployment workflow does not run these validation checks.
 
 ## Environment variable reference
 

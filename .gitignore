@@ -69,3 +69,19 @@ firebase-adminsdk*.json
 # =========================
 .cache/
 tmp/
+
+# Private engineering evidence and handoff exports (retain locally)
+/docs/engineering-metrics/
+/design-exploration/
+/private-handoff/
+/private-exports/
+**/benchmark-results/
+**/benchmark-evidence/
+**/lighthouse-reports/
+**/.lighthouseci/
+**/playwright-report/
+**/test-results/
+**/resume-drafts/
+RESUME-ACHIEVEMENTS.md
+*.zip
+*.zip.sha256
