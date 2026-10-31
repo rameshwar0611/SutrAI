@@ -1,34 +1,28 @@
-import { useEffect, useRef } from 'react'
+import { useId } from 'react'
 import { FcGoogle } from 'react-icons/fc'
-import { X } from 'lucide-react'
+import { LockKeyhole } from 'lucide-react'
+import Button from './ui/Button'
+import Dialog from './ui/Dialog'
 
 export default function AuthDialog({ mode, busy, error, onClose, onContinue }) {
-  const dialog = useRef(null)
-  useEffect(() => {
-    const element = dialog.current
-    const previousFocus = document.activeElement
-    element.showModal()
-    return () => {
-      element.close()
-      previousFocus?.focus()
-    }
-  }, [])
-
-  return (
-    <dialog ref={dialog} aria-labelledby="auth-title" aria-describedby="auth-description"
-      onCancel={event => { event.preventDefault(); onClose() }}
-      onClick={event => { if (event.target === dialog.current) onClose() }}
-      className="m-auto w-[90vw] max-w-[380px] rounded-2xl border border-white/[0.08] bg-[#13151c] p-7 text-white backdrop:bg-black/60 backdrop:backdrop-blur-sm">
-      <div className="flex justify-between items-center gap-4">
-        <h2 id="auth-title" className="text-[17px] font-semibold">{mode === 'signup' ? 'Join SutrAI' : 'Log in to SutrAI'}</h2>
-        <button onClick={onClose} aria-label="Close sign-in" className="p-1 text-slate-400 hover:text-white"><X size={18} /></button>
-      </div>
-      <p id="auth-description" className="mt-3 text-[13px] text-slate-400">Sign in to send messages and save conversations. Your draft will stay here until you choose to send it.</p>
-      {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
-      <button onClick={onContinue} disabled={busy}
-        className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-white py-3 text-sm font-medium text-black disabled:opacity-60">
-        <FcGoogle size={17} />{busy ? 'Signing in…' : 'Continue with Google'}
-      </button>
-    </dialog>
-  )
+  const descriptionId = useId()
+  const signup = mode === 'signup'
+  const recovery = error && /cancelled|session expired/i.test(error)
+  return <Dialog open title={signup ? 'A space for your ideas.' : 'Welcome back.'}
+    onClose={onClose} closeLabel="Close sign-in" descriptionId={descriptionId} className="contour-auth-dialog"
+    intro={<>
+      <div className="contour-auth-brand" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M23 8c-2-3-10-3-12 0s1 5 5 7 8 4 5 8-10 4-13 0M26 13c-2-3-10-3-12 0s1 5 5 7M6 17c2 3 10 3 12 0s-1-5-5-7" /></svg></div>
+      <p className="contour-auth-eyebrow">{signup ? 'Join SutrAI' : 'Continue with SutrAI'}</p>
+    </>}>
+    <p id={descriptionId} className="contour-auth-description">Sign in to send messages and keep your conversations together. You can keep exploring before you decide.</p>
+    {error && <div className={`contour-auth-feedback ${recovery ? 'contour-auth-feedback--neutral' : ''}`}
+      role={recovery ? 'status' : 'alert'}>{error}</div>}
+    <Button className="contour-google-action" busy={busy} onClick={onContinue}>
+      {busy ? <span className="contour-auth-spinner" aria-hidden="true" /> : <FcGoogle size={18} aria-hidden="true" />}
+      {busy ? 'Signing in…' : 'Continue with Google'}
+    </Button>
+    {busy && <span className="sr-only" role="status">Signing in with Google and confirming your session.</span>}
+    <Button variant="ghost" className="contour-auth-explore" onClick={onClose}>Keep exploring</Button>
+    <div className="contour-auth-reassurance"><LockKeyhole size={15} aria-hidden="true" /><span>Your draft stays here.<br />You choose when to send.</span></div>
+  </Dialog>
 }

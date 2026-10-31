@@ -1,12 +1,6 @@
-import api from "../../utils/axios"
-
-export const verifyPayment=async (payload) => {
-    try {
-        const {data}=await api.post("/api/billing/verify",payload)
-        console.log(data)
-        return data
-    } catch (error) {
-        console.log(error)
-        return []
-    }
+import api from '../../utils/axios.js'
+export const verifyPayment = async (payload, { signal } = {}) => {
+  const { data } = await api.post('/api/billing/verify', payload, { signal, timeout: 15000 })
+  if (data?.message !== 'Payment Verified') throw new Error('Backend confirmation unavailable.')
+  return data
 }

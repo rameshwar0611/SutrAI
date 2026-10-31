@@ -1,25 +1,36 @@
-import { MessageSquare } from 'lucide-react'
+import { Code2, Coins, Menu } from 'lucide-react'
 import { useSelector } from 'react-redux'
+import Button from './ui/Button'
+import IconButton from './ui/IconButton'
 
-function Nav() {
-const {selectedConversation}=useSelector(state=>state.conversation)
-const {messages}=useSelector(state=>state.message)
-const status=useSelector(state=>state.user.status)
-  return (
-<>
-    {status==='authenticated' && selectedConversation &&   <div className='h-14 flex items-center gap-2.5 pl-16 lg:pl-5 pr-5 border-b border-white/[0.06] bg-[#0d0f14]'>
-      <div className='flex items-center justify-center w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20'>
-        <MessageSquare size={13} className="text-indigo-400"/>
+export default function Nav({ onLogin, onOpenHistory, historyOpen, onOpenBilling, hasArtifact, artifactTrigger, onOpenArtifact }) {
+  const { selectedConversation } = useSelector(state => state.conversation)
+  const { messages } = useSelector(state => state.message)
+  const { status, signingOut } = useSelector(state => state.user)
+  const mode = useSelector(state => state.workspace.mode)
+  const authenticated = status === 'authenticated'
+  const title = authenticated && selectedConversation ? selectedConversation.title || 'New Chat' : 'SutrAI'
+  const modeLabel = { auto: 'Auto', chat: 'Chat', coding: 'Coding', pdf: 'PDF', ppt: 'PPT', vision: 'Vision', search: 'Search' }[mode]
+  return <header className="contour-topbar" role="banner">
+    <div className="contour-heading-context">
+      <IconButton label="Open conversation history" className="contour-mobile-menu" tooltip={false}
+        onClick={onOpenHistory} aria-haspopup="dialog" aria-expanded={historyOpen} aria-controls="mobile-history"><Menu size={20} /></IconButton>
+      <div className="contour-conversation-heading">
+        <h1 title={title}>{title}</h1>
+        {authenticated && selectedConversation && <span>{messages.length} {messages.length === 1 ? 'message' : 'messages'}</span>}
       </div>
-      <div className='text-[14px] font-semibold text-slate-100 tracking-tight'>
-{selectedConversation?.title || "New Chat"}
-      </div>
-      <div className='text-[10px] font-medium text-slate-600 bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 rounded-full'>
-        {messages?.length} Messages
-      </div>
-    </div>}
-  </>
-  )
+    </div>
+    <div className="contour-header-actions">
+      {authenticated ? <>
+        {hasArtifact ? <Button ref={artifactTrigger} variant="ghost" className="contour-artifact-open" onClick={onOpenArtifact}
+          aria-haspopup="dialog" aria-controls="artifact-workspace">
+          <Code2 size={16} aria-hidden="true" /><span>View code</span>
+        </Button> : modeLabel && <span className="contour-mode-status"><i aria-hidden="true" />{modeLabel} mode</span>}
+        <IconButton label="Plans and credits" onClick={onOpenBilling}><Coins size={18} /></IconButton>
+      </> : <>
+        <Button variant="ghost" onClick={() => onLogin('login')} disabled={status === 'checking' || signingOut}>Log in</Button>
+        <Button variant="primary" onClick={() => onLogin('signup')} disabled={status === 'checking' || signingOut}>Sign up</Button>
+      </>}
+    </div>
+  </header>
 }
-
-export default Nav

@@ -8,6 +8,13 @@ const userSlice = createSlice({
     dialogMode: null, dialogError: null, signingIn: false, signingOut: false, error: null, errorKind: null,
   },
   reducers: {
+    accountRefreshed(state, action) {
+      const { user: snapshot, accountId, sessionEpoch } = action.payload || {}
+      const user = normalizeUser(snapshot)
+      if (state.status !== 'authenticated' || state.sessionEpoch !== sessionEpoch ||
+          state.userData?._id !== accountId || user?._id !== accountId) return
+      state.userData = user
+    },
     sessionChecking(state) {
       state.status = 'checking'
       state.userData = null
@@ -77,6 +84,6 @@ const userSlice = createSlice({
   },
 })
 
-export const { sessionChecking, sessionConfirmed, sessionEnded, sessionFailed, requestLogin,
+export const { accountRefreshed, sessionChecking, sessionConfirmed, sessionEnded, sessionFailed, requestLogin,
   closeLogin, loginStarted, loginFailed, logoutStarted, logoutFinished } = userSlice.actions
 export default userSlice.reducer

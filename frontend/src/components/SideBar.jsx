@@ -1,258 +1,132 @@
-import { Coins, LogOut, Menu, MessageSquare, PanelLeftIcon, PanelRight, PenSquare, Plus, User, X } from "lucide-react"
-import { useState } from 'react'
-import { useEffect } from 'react'
-import { getConversations } from '../features/getConversations'
+import { Coins, History, LogOut, PanelLeftClose, Plus, User } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { getConversations } from '../features/getConversations'
 import { setConversations, setSelectedConversation } from '../redux/conversationSlice'
-
 import { clearDraft } from '../redux/workspaceSlice'
 import { setMessages, setArtifacts } from '../redux/messageSlice'
-import BillingDrawer from './BillingDrawer'
-function SideBar({ onLogin, onLogout }) {
-    const [collapsed, setCollapsed] = useState(false)
-    const dispatch = useDispatch()
-    const [imageError, setImageError] = useState(false)
-    const { conversations: accountConversations, selectedConversation } = useSelector(state => state.conversation)
-    const { userData, status, sessionEpoch, signingOut } = useSelector(state => state.user)
-    const isLoading = useSelector(state => state.message.isLoading)
-    const conversations = status === 'authenticated' ? accountConversations : []
-    const [historyError, setHistoryError] = useState(null)
-    const [billingOwner,setBillingOwner]=useState(null)
-    const showBilling = status === 'authenticated' && billingOwner === sessionEpoch
-    const [mobileOpen,setMobileOpen]=useState(false)
-    useEffect(() => {
-        if (status !== 'authenticated') return
-        const controller = new AbortController()
-        getConversations({ signal: controller.signal }).then(data => {
-            if (controller.signal.aborted) return
-            dispatch(setConversations(data))
-            setHistoryError(null)
-        }).catch(() => {
-            if (!controller.signal.aborted) setHistoryError('Unable to load conversations. Please try again later.')
-        })
-        return () => controller.abort()
-    }, [status, sessionEpoch, dispatch])
+import { store } from '../redux/store'
+import Button from './ui/Button'
+import IconButton from './ui/IconButton'
+import Dialog from './ui/Dialog'
+import HistoryList from './workspace/HistoryList'
 
-    const selectConversation = conversation => {
-        if (isLoading) return
-        dispatch(setSelectedConversation(conversation))
-        dispatch(setMessages([]))
-        dispatch(setArtifacts([]))
-        dispatch(clearDraft())
-        setMobileOpen(false)
-    }
-
-    if (collapsed) {
-        return (
-            <div className='hidden lg:flex flex-col items-center w-[56px] h-screen bg-[#0d0f14] border-r border-white/[0.06] py-4 gap-1 shrink-0'>
-                <button className='flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors duration-150 bg-transparent border-none cursor-pointer mb-1'
-                    onClick={() => setCollapsed(false)}
-                >
-                    <PanelRight />
-                </button>
-
-                <button
-                    className='flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors duration-150 bg-transparent border-none cursor-pointer '
-                    onClick={()=>selectConversation(null)}
-                >
-                    <Plus size={17} />
-                </button>
-
-                <div className='flex-1 overflow-y-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-5'>
-                    {conversations.map((conv) => {
-                        const isActive = selectedConversation?._id == conv?._id
-                        return (
-                            <div
-                                key={conv._id} onClick={() => selectConversation(conv)}
-                                className={`flex items-center gap-2.5 cursor-pointer mb-0.5 px-3 py-2.5 rounded-[10px] border transition-colors duration-150
-                ${isActive ? "bg-indigo-500/10 border-indigo-500/[0.18]"
-                                        : "bg-transparent border-transparent"}`}>
-                                <div className={`flex items-center justify-center shrink-0 w-[20px] h-[20px] rounded-lg transition-colors duration-150
-                ${isActive ? "bg-indigo-500/15 text-indigo-400" : "bg-white/[0.05] text-slate-500"}`}>
-                                    <MessageSquare size={13} />
-                                </div>
-                               
-
-                            </div>
-                        )
-                    })}
-
-                </div>
-
-<div className='"relative shrink-0'>
-                                {
-                                    (userData?.avatar && !imageError)
-                                        ?
-                                        <img
-                                            className='w-9 h-9 rounded-[10px] object-cover border-2 border-indigo-500/25'
-                                            src={userData?.avatar}
-                                            alt={"image"}
-                                            onError={() => setImageError(true)} />
-                                        :
-                                        <div className='w-9 h-9 rounded-[10px] bg-white/[0.06] flex items-center justify-center'>
-                                            <User size={15} className="text-slate-400" />
-                                        </div>
-
-                                }
-
-                            </div>
-                
-
-            </div>
-        )
-    }
-
-
-    return (
-        <>
-         
-       <button className='lg:hidden fixed top-3.5 left-4 z-50 flex items-center justify-center w-8 h-8 rounded-lg bg-[#0d0f14] border border-white/[0.06] text-slate-400 hover:text-slate-200 transition-colors duration-150 cursor-pointer' onClick={()=>setMobileOpen(true)}>
-            <Menu size={14}/>
-         </button>
-
-         {mobileOpen && <div onClick={()=>setMobileOpen(false)} className='lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm'/>}
-  
-
-
-        <div className={` fixed lg:static inset-y-0 left-0 z-50
-        w-[270px] h-screen shrink-0
-        bg-[#0d0f14] border-r border-white/[0.06]
-        transition-transform duration-250
-        ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-`}
-      >
-
-            
-
-            <div className='flex flex-col h-full'>
-                <div className='flex items-center gap-2.5 px-4 py-4 border-b border-white/[0.06]'>
-                    <div className='hidden lg:flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors duration-150 bg-transparent border-none cursor-pointer'
-                        onClick={() => setCollapsed(true)}
-                    >
-                        <PanelLeftIcon />
-                    </div>
-
-                    <button  onClick={() => setMobileOpen(false)}
-          className="lg:hidden flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors duration-150 bg-transparent border-none cursor-pointer"
->
-                        <X/>
-                    </button>
-                    <span className='text-[16px] font-semibold text-slate-100 tracking-tight flex-1'>
-                        SutrAI
-                    </span>
-                    <span className='text-[10px] font-medium text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full tracking-wide'>{status === "authenticated" ? userData?.plan || "free" : "guest"}</span>
-                    <button className='flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors duration-150 bg-transparent border-none cursor-pointer'
-                        onClick={()=>selectConversation(null)}>
-                        <PenSquare size={14} />
-                    </button>
-                </div>
-
-                <div className='px-4 pt-4 pb-1'>
-                    <button className='w-full flex items-center justify-center gap-2 text-sm font-medium text-white bg-linear-to-br from-indigo-500 to-violet-700 rounded-xl py-[10px] border-none cursor-pointer hover:opacity-90 transition-opacity duration-150'
-                        onClick={()=>selectConversation(null)}
-                    >
-                        <Plus size={15} />
-                        New Chat
-                    </button>
-                </div>
-
-                {conversations?.length == 0
-                    ?
-                    <div className='px-5 pt-4 pb-1.5 text-[10.5px] font-semibold uppercase tracking-widest text-slate-600'>
-                        {status === "authenticated" ? "No Recent Conversations" : "Sign in to save conversations"}
-                    </div>
-                    :
-                    (
-                        <div className='px-5 pt-4 pb-1.5 text-[10.5px] font-semibold uppercase tracking-widest text-slate-600'>
-                            Recents
-                        </div>
-                    )}
-
-
-                <div className='flex-1 overflow-y-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-                    {status === 'authenticated' && historyError && <p role="alert" className="px-3 py-2 text-xs text-red-300">{historyError}</p>}
-                    {conversations?.map((conv) => {
-                        const isActive = selectedConversation?._id == conv?._id
-                        return (
-                            <div
-                                key={conv._id} onClick={() => selectConversation(conv)}
-                                className={`flex items-center gap-2.5 cursor-pointer mb-0.5 px-3 py-2.5 rounded-[10px] border transition-colors duration-150
-                ${isActive ? "bg-indigo-500/10 border-indigo-500/[0.18]"
-                                        : "bg-transparent border-transparent"}`}>
-                                <div className={`flex items-center justify-center shrink-0 w-[28px] h-[28px] rounded-lg transition-colors duration-150
-                ${isActive ? "bg-indigo-500/15 text-indigo-400" : "bg-white/[0.05] text-slate-500"}`}>
-                                    <MessageSquare size={13} />
-                                </div>
-                                <span className={`text-[13px] font-medium truncate ${isActive ? "text-slate-100" : "text-slate-300"}`}>
-                                    {conv?.title || "New Chat"}
-                                </span>
-
-                            </div>
-                        )
-                    })}
-
-                </div>
-
-                <div className='mx-2.5 h-px bg-white/[0.06]' />
-                <div className='px-3.5 py-3.5'>
-                    {userData ? (
-                        <div className='flex items-center gap-2.5 cursor-pointer rounded-xl px-3 py-2.5 hover:bg-white/[0.05] transition-colors duration-150'>
-                            <div className='"relative shrink-0'>
-                                {
-                                    (userData?.avatar && !imageError)
-                                        ?
-                                        <img
-                                            className='w-9 h-9 rounded-[10px] object-cover border-2 border-indigo-500/25'
-                                            src={userData?.avatar}
-                                            alt={"image"}
-                                            onError={() => setImageError(true)} />
-                                        :
-                                        <div className='w-9 h-9 rounded-[10px] bg-white/[0.06] flex items-center justify-center'>
-                                            <User size={15} className="text-slate-400" />
-                                        </div>
-
-                                }
-
-                            </div>
-                            <div className='flex-1 min-w-0'>
-                                <p className='text-[13.5px] font-semibold text-slate-100 truncate'>{userData?.name || "user"}</p>
-                                <p className='text-[11px] text-slate-600 mt-px'>{`${userData?.plan}` || "free plan"} </p>
-                            </div>
-                            <div className='flex gap-1'>
-                                <button 
-                                aria-label="Billing" onClick={()=>setBillingOwner(sessionEpoch)}
-                                className='flex items-center justify-center w-7 h-7 rounded-[7px] border-none bg-transparent text-yellow-600 cursor-pointer hover:bg-white/[0.08] hover:text-slate-400 transition-all duration-150'>
-                                    <Coins size={16} />
-                                </button>
-                                <button className='flex items-center justify-center w-7 h-7 rounded-[7px] border-none bg-transparent text-slate-600 cursor-pointer hover:bg-white/[0.08] hover:text-slate-400 transition-all duration-150'
-                                    aria-label="Log out" onClick={onLogout}
-                                >
-                                    <LogOut size={16} />
-                                </button>
-                            </div>
-                        </div>)
-                        :
-                        <button disabled={status === 'checking' || signingOut} onClick={() => onLogin()} className='w-full flex items-center justify-center gap-2 text-sm font-medium text-slate-200 bg-white/[0.05] border border-white/[0.08] rounded-xl py-[11px] cursor-pointer hover:bg-white/[0.08] transition-colors duration-150 disabled:opacity-50'>
-                            Log in
-                        </button>}
-                </div>
-            </div>
-
-        </div>
-
-        
-           {status === "authenticated" && <BillingDrawer
-           key={sessionEpoch}
-           open={showBilling}
-           onClose={()=>setBillingOwner(null)}
-           />}
-
-        </>
-    )
-
-
-
-
+function AccountAvatar({ user }) {
+  const [failedAvatar, setFailedAvatar] = useState(null)
+  const initials = user?.name?.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
+  return <span className="contour-avatar" aria-hidden="true">
+    {user?.avatar && user.avatar !== failedAvatar
+      ? <img src={user.avatar} alt="" referrerPolicy="no-referrer" onError={() => setFailedAvatar(user.avatar)} />
+      : initials || <User size={18} />}
+  </span>
 }
 
-export default SideBar
+export default function SideBar({ onLogin, onLogout, onOpenBilling, expanded, onToggleExpanded, mobileOpen, onCloseMobile }) {
+  const dispatch = useDispatch()
+  const historyToggle = useRef(null)
+  const { conversations: accountConversations, selectedConversation } = useSelector(state => state.conversation)
+  const { userData, status, sessionEpoch, signingOut } = useSelector(state => state.user)
+  const isLoading = useSelector(state => state.message.isLoading)
+  const [retry, setRetry] = useState(0)
+  const [historyRequest, setHistoryRequest] = useState(null)
+  const authenticated = status === 'authenticated'
+  const conversations = authenticated ? accountConversations : []
+  const requestStatus = historyRequest?.epoch === sessionEpoch && historyRequest?.retry === retry
+    ? historyRequest.status : 'loading'
+
+  useEffect(() => {
+    if (!authenticated) return
+    const controller = new AbortController()
+    const current = () => !controller.signal.aborted && store.getState().user.status === 'authenticated' &&
+      store.getState().user.sessionEpoch === sessionEpoch
+    getConversations({ signal: controller.signal }).then(data => {
+      if (!current()) return
+      dispatch(setConversations(data))
+      setHistoryRequest({ epoch: sessionEpoch, retry, status: 'ready' })
+    }).catch(() => {
+      if (current()) setHistoryRequest({ epoch: sessionEpoch, retry, status: 'error' })
+    })
+    return () => controller.abort()
+  }, [authenticated, sessionEpoch, retry, dispatch])
+
+  // Release the native mobile modal before the desktop rail takes over.
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 761px)')
+    const closeOnDesktop = () => { if (desktop.matches) onCloseMobile() }
+    desktop.addEventListener('change', closeOnDesktop)
+    return () => desktop.removeEventListener('change', closeOnDesktop)
+  }, [onCloseMobile])
+
+  const selectConversation = conversation => {
+    if (isLoading) return
+    dispatch(setSelectedConversation(conversation))
+    dispatch(setMessages([]))
+    dispatch(setArtifacts([]))
+    dispatch(clearDraft())
+    onCloseMobile()
+  }
+  const login = () => { onCloseMobile(); onLogin() }
+  const openBilling = () => { onCloseMobile(); onOpenBilling() }
+  const logout = () => { onCloseMobile(); onLogout() }
+  const authDisabled = status === 'checking' || signingOut
+  const planLabel = typeof userData?.plan === 'string' && userData.plan ? `${userData.plan} plan` : 'Plan unavailable'
+
+  const content = <>
+    <Button className="contour-new-conversation" onClick={() => selectConversation(null)} disabled={isLoading}>
+      <Plus size={18} aria-hidden="true" />New conversation
+    </Button>
+    {authenticated
+      ? <HistoryList conversations={conversations} selectedId={selectedConversation?._id} requestStatus={requestStatus}
+          disabled={isLoading} onSelect={selectConversation} onRetry={() => setRetry(value => value + 1)} />
+      : <div className="contour-history-empty">
+          <History size={22} aria-hidden="true" />
+          <strong>Your workspace, ready to explore</strong>
+          <p>Choose a mode and compose a prompt. Sign in when you’re ready to send and save conversations.</p>
+        </div>}
+    <div className="contour-history-account">
+      {authenticated ? <>
+        <div className="contour-profile">
+          <AccountAvatar user={userData} />
+          <div><strong title={userData?.name}>{userData?.name || 'Your account'}</strong><small>{planLabel}</small></div>
+        </div>
+        <div className="contour-account-actions">
+          <Button variant="ghost" onClick={openBilling}><Coins size={16} aria-hidden="true" />Plans & credits</Button>
+          <IconButton label="Log out" onClick={logout}><LogOut size={17} /></IconButton>
+        </div>
+      </> : <Button onClick={login} disabled={authDisabled} className="contour-full-width">Log in</Button>}
+    </div>
+  </>
+
+  return <>
+    <nav className="contour-rail" aria-label="Workspace navigation">
+      <span className="contour-brand" role="img" aria-label="SutrAI">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M23 8c-2-3-10-3-12 0s1 5 5 7 8 4 5 8-10 4-13 0M26 13c-2-3-10-3-12 0s1 5 5 7M6 17c2 3 10 3 12 0s-1-5-5-7" /></svg>
+      </span>
+      <IconButton label="New conversation" side="right" className="contour-new-icon" disabled={isLoading}
+        onClick={() => selectConversation(null)}><Plus size={21} /></IconButton>
+      <IconButton label={expanded ? 'Collapse conversation history' : 'Expand conversation history'} side="right"
+        ref={historyToggle} aria-expanded={expanded} aria-controls="desktop-history" onClick={onToggleExpanded}>
+        <History size={20} />
+      </IconButton>
+      <span className="contour-rail__spacer" />
+      {authenticated ? <>
+        <IconButton label="Plans and credits" side="right" onClick={openBilling}><Coins size={19} /></IconButton>
+        <IconButton label="Open account and history controls" side="right" aria-expanded={expanded}
+          aria-controls="desktop-history" onClick={onToggleExpanded}><AccountAvatar user={userData} /></IconButton>
+      </> : <IconButton label="Log in" side="right" onClick={login} disabled={authDisabled}><User size={19} /></IconButton>}
+    </nav>
+    <aside id="desktop-history" className="contour-history-panel" aria-label="Conversation history" hidden={!expanded}
+      onKeyDown={event => {
+        if (event.key === 'Escape') { onToggleExpanded(); historyToggle.current?.focus() }
+      }}>
+      <div className="contour-history-heading">
+        <h2>SutrAI</h2>
+        <IconButton label="Collapse conversation history" onClick={onToggleExpanded}><PanelLeftClose size={18} /></IconButton>
+      </div>
+      {content}
+    </aside>
+    <Dialog id="mobile-history" open={mobileOpen} onClose={onCloseMobile} title="Conversation history" className="contour-dialog--history">
+      {content}
+    </Dialog>
+  </>
+}
