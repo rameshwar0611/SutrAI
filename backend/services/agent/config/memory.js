@@ -1,30 +1,17 @@
-import redis from "../../../shared/redis/redis.js"
-import { getMessages } from "../utils/getMessages.js"
-export const getMemory=async (conversationId)=>{
-    const key=`messages-${conversationId}`
-    const cached=await redis.get(key)
-    if(cached){
-        return JSON.parse(cached)
-    }
-    
-    const messages=await getMessages(conversationId)
-    await redis.set(key,JSON.stringify(messages),"EX",24*60*60)
-    
-    return messages
+import redis from '../../../shared/redis/redis.js'
+import { getMessages } from '../utils/getMessages.js'
+const key = (conversationId, userId) => `messages:${userId}:${conversationId}`
+export const getMemory = async (conversationId, userId) => {
+  try {
+    const cached = await redis.get(key(conversationId, userId))
+    if (cached) { const data = JSON.parse(cached); if (Array.isArray(data)) return data }
+  } catch { /* Use durable, ownership-checked history when Redis is unavailable. */ }
+  const messages = await getMessages(conversationId, userId)
+  try { await redis.set(key(conversationId, userId), JSON.stringify(messages.slice(-20)), 'EX', 86400) } catch { /* Cache is optional. */ }
+  return messages
 }
-
-export const addMessage=async (conversationId,role,content)=>{
-     const key=`messages-${conversationId}`
-     const rawMessages=await redis.get(key)
-     const messages=rawMessages?JSON.parse(rawMessages):[]
-     messages.push({
-        role,content
-     })
-
-     if(messages.length>20){
-        messages.shift()
-     }
-
-     await redis.set(key,JSON.stringify(messages))
+export const addExchange = async (conversationId, userId) => {
+  // Reload after durable writes; do not append duplicates or race read/modify/write lists.
+  const messages = await getMessages(conversationId, userId)
+  await redis.set(key(conversationId, userId), JSON.stringify(messages.slice(-20)), 'EX', 86400)
 }
-

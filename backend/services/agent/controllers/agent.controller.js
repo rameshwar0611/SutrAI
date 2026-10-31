@@ -1,34 +1,12 @@
-import axios from "axios"
-import { graph } from "../graph/graph.js"
-import { addMessage } from "../config/memory.js"
-import redis from "../../../shared/redis/redis.js"
-
-
-export const agent=async (req,res,next) => {
-    try {
-        const {prompt,conversationId,agent}=req.body
-        const file=req.file
-        console.log("file",file)
-        const userId=req.headers["x-user-id"]
-        await axios.post(`${process.env.CHAT_SERVICE}/save-message`,{
-            conversationId,role:"user",content:prompt
-        })
-        const result=await graph.invoke({
-            prompt,conversationId,agent,userId,file
-        })
-        console.log("result",result)
-       await addMessage(conversationId,"user",prompt)
-        await addMessage(conversationId,"assistant",result.aiResponse)
-        await axios.post(`${process.env.CHAT_SERVICE}/save-message`,{
-            conversationId,role:"assistant",content:result?.aiResponse,images:result?.images,artifacts:result?.artifacts
-        })
-        return res.status(200).json({
-            answer:result?.aiResponse,
-            images:result?.images,
-            artifacts:result?.artifacts
-        })
-       
-    } catch (error) {
-       next(error)
-    }
-}
+import { unlink } from 'node:fs/promises'
+import { graph } from '../graph/graph.js'
+import { addExchange } from '../config/memory.js'
+import { callService } from '../../../shared/security/internal.js'
+import { reserveCredits, settleCredits } from '../utils/deductCredits.js'
+import { createAgentHandler } from './agent.handler.js'
+const chat = (path, userId, body, method = 'POST') => callService({ caller: 'agent', url: process.env.CHAT_SERVICE, path, userId, body, method })
+export const agent = createAgentHandler({ graph,
+  authorize: (id, userId) => chat(`/authorize/${id}`, userId, undefined, 'GET'),
+  saveMessage: ({ userId, ...body }) => chat('/save-message', userId, body),
+  reserve: reserveCredits, settle: settleCredits, addMemory: addExchange, cleanup: unlink,
+})

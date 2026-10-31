@@ -1,11 +1,8 @@
-import axios from "axios"
-
-export const deductCredits=async (userId,agent)=>{
-    try {
-       const {data}=await axios.post(`${process.env.AUTH_SERVICE}/deduct-credits`,{userId,agent})
-       return data
-    } catch (error) {
-        console.log(error)
-        return null
-    }
+import { callService, httpError } from '../../../shared/security/internal.js'
+const update = async ({ userId, ...body }) => {
+  const result = await callService({ caller: 'agent', url: process.env.AUTH_SERVICE, path: '/deduct-credits', userId, body })
+  if (result?.success !== true) throw httpError(503, 'Credit operation requires review.')
+  return result
 }
+export const reserveCredits = payload => update({ ...payload, action: 'reserve' })
+export const settleCredits = payload => update({ ...payload, action: 'settle' })

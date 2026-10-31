@@ -1,20 +1,19 @@
 import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { getModel } from "../config/llmModels.js"
 import { getMemory } from "../config/memory.js"
-import { deductCredits } from "../utils/deductCredits.js"
 import { checkAgentLimit } from "../config/agentLimit.js"
 
 export const chatAgent = async (state) => {
 
    
 
-    try {
+
 
         await checkAgentLimit(state.userId,"chat")
 
          const llm = await getModel("chat")
 
-    const history = await getMemory(state.conversationId)
+    const history = await getMemory(state.conversationId, state.userId)
 
    const searchContext=state.searchResults?`
    Web Search Results:
@@ -74,21 +73,11 @@ Answer the user using only the above search results.
 
 
     const response = await llm.invoke(messages)
-      await deductCredits(state.userId,"chat")
    
     return {
         ...state,
         aiResponse: response.content,
         
     }
-    } catch (error) {
-        console.log(error)
-         return {
-            ...state,
-            aiResponse:error?.data?.message || "failed to generate chat"
-        }
-        
     
-    }
-   
 }
