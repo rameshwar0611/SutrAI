@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { PLANS } from '../../backend/services/billing/config/Plans.js'
 import { billingPlans, accountSnapshot, checkoutQuote, quoteChanged, paymentPayload } from '../src/utils/billing.js'
 import { createAppStore } from '../src/redux/store.js'
 import { accountRefreshed, sessionConfirmed, logoutStarted } from '../src/redux/userSlice.js'
@@ -9,8 +9,6 @@ import { setArtifacts, addMessage } from '../src/redux/messageSlice.js'
 import { setDraftText } from '../src/redux/workspaceSlice.js'
 
 test('display catalogue matches the actual backend configuration', async () => {
-  const code = readFileSync(new URL('../../backend/services/billing/config/Plans.js', import.meta.url), 'utf8')
-  const { PLANS } = await import(`data:text/javascript,${encodeURIComponent(code)}`)
   for (const plan of billingPlans) for (const field of ['id', 'name', 'amount', 'credits']) assert.equal(plan[field], PLANS[plan.id][field])
 })
 test('zero is retained while missing, negative, nonfinite and inconsistent balances never become a healthy quota', () => {
