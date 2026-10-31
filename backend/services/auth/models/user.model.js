@@ -20,7 +20,10 @@ const userSchema=new mongoose.Schema({
         type:Number,
         default:100
     },
-    planExpiresAt:Date
+    planExpiresAt:Date,
+    creditGrants: [{ _id: false, id: String, plan: String, credits: Number, createdAt: Date }],
+    creditReservations: [{ _id: false, id: String, agent: String, reserved: Number, charged: Number,
+        state: { type: String, enum: ['reserved', 'settled'] }, createdAt: Date }]
 
 },{
     timestamps:true

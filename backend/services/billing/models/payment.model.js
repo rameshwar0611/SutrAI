@@ -7,7 +7,8 @@ const paymentSchema=new mongoose.Schema({
     },
     orderId:{
         type:String,
-        required:true
+        required:true,
+        unique:true
     },
     paymentId:String,
     amount:Number,
@@ -23,9 +24,11 @@ const paymentSchema=new mongoose.Schema({
     },
     status:{
         type:String,
-        enum:["created","paid","failed"],
+        enum:["created","verified","paid","failed"],
         default:"created"
-    }
+    },
+    creditGrantVersion: Number,
+    creditedAt: Date
 },{timestamps:true})
 
 const Payment=mongoose.model("Payment",paymentSchema)
